@@ -23,11 +23,12 @@ int Count_degree(unsigned int a) {
 		x^10 을 왼쪽으로 비트이동 해주고 비트 이동한 만큼 count_a 값에  +1 해준다.
 	*/
 	int count_a = 0;
-	while (((a << count_a) & 0x8000000) != 0x8000000) { // 0x8000000 = 1000 0000 0000 0000 0000 0000 0000 0000 
+	if (a == 0) return -1; // 0이 들어오면 무한 루프 방지
+	while (((a << count_a) & 0x80000000U) != 0x80000000U) { // 0x80000000 = 1000 0000 0000 0000 0000 0000 0000 0000 (32비트 MSB)
 		count_a++;
 	}
 	return count_a;
-} 
+}
 int countd(unsigned int a) {
 	/* <전체적인 아이디어>
 	이 코드는 주어진 값 a의 최대차수를 구하는 함수이다. 여기서 위의 함수 Count_degree와 다른 점은 
@@ -46,9 +47,8 @@ int countd(unsigned int a) {
 	tmp = a;
 
 	while (tmp != 0) {
-		if ((tmp & (0x01 << count)) == (0x01 << count))
-		{
-			tmp ^= (0x01 << count);
+		if ((tmp >> count) & 0x01) {
+			tmp &= ~(0x01U << count); // 해당 비트 클리어
 		}
 		count++;
 	}
@@ -67,20 +67,17 @@ unsigned char Divide(unsigned int B,unsigned int A) { // B/A 에서 몫을 구�
 	   (0x11b - 0x02 * x^7 =  (x^8 + x^4 + x^3 + x +1) ^ (x * x^7) =  x^4 + x^3 + x +1)
 	이 과정들을 A>B 일때까지 반복한다.
 	*/
-	int count=1; // while 함수에서 초기값이 필요하므로 0이 아닌 값으로 설정
-	unsigned int output = 0; 
+	if (A == 0) return 0; // 0으로 나누는 경우 가드
+	int count = 1; // while 함수에서 초기값이 필요하므로 0이 아닌 값으로 설정
+	unsigned int output = 0;
 	while (count > 0) {
-		int count_a = 0;
-		int count_b = 0;
-
-		count = countd(B) - countd(A);
-		//count = Count_degree(A) - Count_degree(B); // 최고 차항의 차를 구하기 위해 a 와 b의 count 값을 빼준다.
-		B = B ^ (A << count); // 나눗셈 방식처럼 최고 차항의 차만큼  A에 곱해주고 이를 XOR 시켜준다. 
-		output = output ^ (0x01 << count); // 최고 차항의 차를 몫에 넣어준다.
+		count = countd(B) - countd(A); // 최고 차항의 차
+		if (count < 0) break; // B의 차수가 A보다 작으면 종료 (A>B 일때 더 이상 나눗셈 불가)
+		B ^= (A << count); // 나눗셈 방식처럼 최고 차항의 차만큼 A에 곱하고 XOR
+		output ^= (0x01U << count); // 최고 차항의 차를 몫에 넣음
 	}
 
-	output = output & 0xff; //이 함수의 출력값이 char 이기 떄문에 8비트로 만들어준다. 
-	return output;
+	return (unsigned char)(output & 0xff); //출력값이 char 이므로 8비트로 마스킹
 }
 unsigned int LongDivision(unsigned int a, unsigned int b, unsigned int *r) { // a>b , r은 나머지 값
 	/* <전체적인 아이디어>
@@ -131,12 +128,12 @@ unsigned int Modulo0x11b(unsigned int k) {
 
 	while (k >= 0x100) {
 		count = 0;
-		L = k & 0xfffffff00; // 우리가 count 해야될 지수는 x^8 이상이므로 밑에 차수는 버린다.
+		L = k & 0xffffff00U; // 우리가 count 해야될 지수는 x^8 이상이므로 하위 8비트는 버린다.
 		while (((L >> count) & 0x100) != 0x100) {
 			count++;
 		}
-		L = L ^ (0x100 << count);
-		k = k ^ (0x11b << count); // x^8 ≡ x^4 + x^3 + x + 1 mod (f(x)) 이다. 예를들어서 x^10 = x^8 * x^2 ≡ (x^4 + x^3 + x + 1) * x^2 mod (f(x)) -> 0x1b << 2
+		L ^= (0x100U << count);
+		k ^= (0x11bU << count); // x^8 ≡ x^4 + x^3 + x + 1 mod (f(x)). 예: x^10 = x^8 * x^2 ≡ (x^4 + x^3 + x + 1) * x^2 → 0x1b << 2
 	}
 	return k;
 }
@@ -438,15 +435,17 @@ unsigned char RTL(unsigned char x, unsigned int n) {
 	unsigned char t[2];
 	int i, count;
 
-	count = countd(n); // l값 구해줌
+	count = countd(n); // 최고차수 인덱스 (l-1)
 	t[0] = 1; t[1] = x;
 
-	for (i = 0; i <= count; i++) {
+	for (i = 0; i < count; i++) { // 마지막 squaring은 사용되지 않으므로 < 로 변경
 		if (((n >> i) & 0x01) == 0x01)
 			t[0] = new_multiplication(t[0], t[1]);
 
 		t[1] = new_multiplication(t[1], t[1]);
 	}
+	if (((n >> count) & 0x01) == 0x01) // 최상위 비트 처리
+		t[0] = new_multiplication(t[0], t[1]);
 	return t[0];
 }
 
@@ -504,52 +503,58 @@ unsigned char MAS(unsigned char x, unsigned int n) {
 	return t[0];
 }
 
-int main() {
-	unsigned int A;
-	unsigned char B;
-	/*printf("A의 값을 입력하세요 : ");
-	scanf_s("%02x", &A, 8);
-
-	printf("%02x의 역원은 %02x입니다.\n",A, inverseFunction(A));
-	B = inverseFunction(A) & 0xff;
-	printf("%02x의 s-box변환값은 %02x입니다.\n",A, Matrix(B));
-
-	*/
-
+// AES S-Box 표를 16x16 형식으로 출력
+static void print_sbox(void) {
 	printf("          S-BOX\n");
-	for (A = 0x00; A <= 0xff; A++) {
-		B = ExtendEuclideanFunction(A) & 0xff;
+	for (unsigned int A = 0x00; A <= 0xff; A++) {
+		unsigned char B = ExtendEuclideanFunction(A) & 0xff;
 		printf("%02x ", AffineTransformation(B));
 		if ((A & 0x0f) == 0x0f)
 			printf("\n");
 	}
-	
-	printf("\n \n");
-	
+}
+
+// AES Inverse S-Box 표를 16x16 형식으로 출력
+static void print_inverse_sbox(void) {
 	printf("          Inverse S-BOX\n");
-	for (A = 0x00; A <= 0xff; A++) {
-		B = InverseAffineTransformation(A) & 0xff;
-		printf("%02x ", ExtendEuclideanFunction(B)&0xff);
+	for (unsigned int A = 0x00; A <= 0xff; A++) {
+		unsigned char B = InverseAffineTransformation(A) & 0xff;
+		printf("%02x ", ExtendEuclideanFunction(B) & 0xff);
 		if ((A & 0x0f) == 0x0f)
 			printf("\n");
 	}
+}
 
-	printf("\n\n 이부분은 역원값이 같은지 비교하기 위해서 만들었습니다. \n");
+// 6가지 역원 계산 알고리즘 결과 비교 (불일치 시 [MISMATCH] 표시)
+static void verify_inverse_algorithms(void) {
+	int mismatch = 0;
+	printf("역원값 비교: ExtEuclidean = invF2 = invF3 = LTR = RTL = MAS\n");
 	for (int k = 0x01; k <= 0xff; k++) {
-		printf("%02x의 역원 : %02x = %02x = %02x = %02x = %02x = %02x",k, ExtendEuclideanFunction(k), inverseFunction2(k), InverseFunction3(k), LTR(k, 254),RTL(k,254),MAS(k,254));
-		if (ExtendEuclideanFunction(k) == MAS(k, 254))
-			printf(" 역원값 잘 만들었어요 ^_^ \n");
-	}
-	/*for (unsigned int i = 0; i < 0x100; i++) {
-		for (unsigned int j = 0; j < 0x100; j++) {
-			unsigned int k = Multiplication(i, j);
-			if (Modulo0x11b(k) == new_multiplication(i, j))
-				printf("%02x x %02x = 잘만듬 \n", j, i);
-			else
-				printf("%d x %d = ㅗ \n", j, i);
-			
-		}
-	}*/
+		unsigned int ref = ExtendEuclideanFunction(k);
+		unsigned int v2 = inverseFunction2(k);
+		unsigned int v3 = InverseFunction3(k);
+		unsigned int vL = LTR(k, 254);
+		unsigned int vR = RTL(k, 254);
+		unsigned int vM = MAS(k, 254);
 
+		printf("%02x의 역원: %02x = %02x = %02x = %02x = %02x = %02x",
+			k, ref, v2, v3, vL, vR, vM);
+
+		if (ref == v2 && ref == v3 && ref == vL && ref == vR && ref == vM) {
+			printf("  OK\n");
+		} else {
+			printf("  [MISMATCH]\n");
+			mismatch++;
+		}
+	}
+	printf("\n총 %d 건 불일치\n", mismatch);
+}
+
+int main(void) {
+	print_sbox();
+	printf("\n\n");
+	print_inverse_sbox();
+	printf("\n\n");
+	verify_inverse_algorithms();
 	return 0;
 }
