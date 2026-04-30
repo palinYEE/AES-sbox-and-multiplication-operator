@@ -1,4 +1,4 @@
-﻿#include<stdio.h>
+#include<stdio.h>
 /* <다항식으로 비트를 표현하는 것에 대한 정의>
 이제 우리가 s-box를 연산을 할껀데 이는 GF(2^8) 에서의 연산이기 떄문에 다항식 연산을 해야한다. 
 그래서 우리가 비트를 이용하여 다항식 연산을 진행하는데 우리는 다항식을 어떻게 표현할 것인지 정의를 할것이다. 
@@ -14,7 +14,11 @@ f(x) = x^8 + x^4 + x^3 + x + 1 로 정하고 시작을 할것이다.
 
 */
 
-//최대 차수를 구하는 함수
+/**
+ * Compute how many left shifts are required to move the most-significant set bit of a to the 31st bit (0x80000000).
+ * @param a Bitmask representing a polynomial or integer; must be treated as a 32-bit unsigned value.
+ * @returns The number of left shifts needed to align the highest set bit of `a` with 0x80000000, or `-1` if `a == 0`.
+ */
 int Count_degree(unsigned int a) {
 	/* <주어진 다항식의 최고 차수를 계산하는 함수>	
 	 32비트 에서 최고차항의 위치를 파악하기 위해 카운트를 해준다
@@ -29,6 +33,12 @@ int Count_degree(unsigned int a) {
 	}
 	return count_a;
 }
+/**
+ * Compute the index of the highest set bit (polynomial degree) in the input.
+ *
+ * @param a Input bit pattern whose highest set-bit index is to be computed.
+ * @returns The index k of the most significant set bit in `a`. Returns -1 if `a` is 0.
+ */
 int countd(unsigned int a) {
 	/* <전체적인 아이디어>
 	이 코드는 주어진 값 a의 최대차수를 구하는 함수이다. 여기서 위의 함수 Count_degree와 다른 점은 
@@ -55,7 +65,14 @@ int countd(unsigned int a) {
 	return count - 1;
 }
 
-//나누기 연산 함수
+/**
+ * Compute the quotient polynomial of B divided by A in GF(2), where polynomials are encoded
+ * as bitfields (bit i corresponds to the coefficient of x^i).
+ *
+ * @param B Dividend polynomial encoded as an unsigned int bitfield.
+ * @param A Divisor polynomial encoded as an unsigned int bitfield; if A is 0 the function returns 0.
+ * @returns Quotient polynomial masked to 8 bits (bit i = coefficient of x^i). Returns 0 if A == 0 or if the quotient is zero.
+ */
 unsigned char Divide(unsigned int B,unsigned int A) { // B/A 에서 몫을 구하는 함수
 	/* <전체적인 아이디어>
 	예를 들어서 0x11b / 0x02라고 해보자. 0x11b = x^8 + x^4 + x^3 + x +1, 0x02 = x
@@ -79,6 +96,20 @@ unsigned char Divide(unsigned int B,unsigned int A) { // B/A 에서 몫을 구�
 
 	return (unsigned char)(output & 0xff); //출력값이 char 이므로 8비트로 마스킹
 }
+/**
+ * Perform polynomial long division of `a` by `b` over GF(2) and produce the quotient and remainder.
+ *
+ * The inputs `a` and `b` are treated as polynomials encoded in the bits of the unsigned integers
+ * (bit i corresponds to x^i). The function computes the polynomial quotient `q` and writes the
+ * polynomial remainder into `*r`.
+ *
+ * @param a Dividend polynomial encoded as bits.
+ * @param b Divisor polynomial encoded as bits.
+ * @param r Pointer to an unsigned int where the remainder polynomial will be stored.
+ * @returns The quotient polynomial (as an unsigned int).
+ *
+ * Special behavior: if the degree of `b` is 31, the function sets `*r = a ^ b` and returns 1.
+ */
 unsigned int LongDivision(unsigned int a, unsigned int b, unsigned int *r) { // a>b , r은 나머지 값
 	/* <전체적인 아이디어>
 	Long division algorithm 을 기반으로 한 코드이며 이는 처음 a와 b의 최대차수 구하는것 이외에
@@ -115,7 +146,12 @@ unsigned int LongDivision(unsigned int a, unsigned int b, unsigned int *r) { // 
 	return output;
 }
 
-//모듈러 연산 함수
+/**
+ * Reduce a polynomial (represented as an unsigned integer) modulo the AES irreducible polynomial 0x11b (x^8 + x^4 + x^3 + x + 1).
+ *
+ * @param k Polynomial encoded in the bits of `k`; coefficients for x^i are given by bit i. `k` may have degree >= 8.
+ * @returns The remainder of k modulo 0x11b, an 8-bit value (0x00–0xFF) representing the reduced polynomial.
+ */
 unsigned int Modulo0x11b(unsigned int k) {
 	/* <전체적인 아이디어>
 	k mod (0x11b) 의 값을 구하는 과정이다.
@@ -409,7 +445,13 @@ unsigned char LTR(unsigned char x, unsigned int n) {
 	return temp[1];
 }
 
-//right to left
+/**
+ * Compute x raised to the power n in GF(2^8) using the right-to-left binary exponentiation method.
+ *
+ * @param x Base value interpreted as an element of GF(2^8).
+ * @param n Exponent given as an unsigned integer (binary representation drives the algorithm).
+ * @return The field element equal to x^n in GF(2^8). Returns 1 when n is 0.
+ */
 unsigned char RTL(unsigned char x, unsigned int n) {
 	/*<전체적인 아이디어>
 	이 코드는 a^n 을 구하기 위해 Right-to-Left Binary Method 를 이용한 c코드이다. 
@@ -449,7 +491,12 @@ unsigned char RTL(unsigned char x, unsigned int n) {
 	return t[0];
 }
 
-//Multiply and Squaring
+/**
+ * Compute x raised to the power n in GF(2^8) using a multiply-and-squaring exponentiation method.
+ * @param x Base element in GF(2^8).
+ * @param n Non-negative integer exponent.
+ * @returns The value of x^n computed in GF(2^8) (8-bit result).
+ */
 unsigned char MAS(unsigned char x, unsigned int n) {
 	/* <전체적인 아이디어> 
 	기본적인 이론은 다음과 같다. 
@@ -503,7 +550,12 @@ unsigned char MAS(unsigned char x, unsigned int n) {
 	return t[0];
 }
 
-// AES S-Box 표를 16x16 형식으로 출력
+/**
+ * Print the AES S-box as a 16×16 hexadecimal table to stdout.
+ *
+ * Each table entry is computed by taking the multiplicative inverse in GF(2^8)
+ * (0x11b) for the index value and then applying the AES affine transformation.
+ */
 static void print_sbox(void) {
 	printf("          S-BOX\n");
 	for (unsigned int A = 0x00; A <= 0xff; A++) {
@@ -514,7 +566,12 @@ static void print_sbox(void) {
 	}
 }
 
-// AES Inverse S-Box 표를 16x16 형식으로 출력
+/**
+ * Print the AES inverse S-box as a 16×16 table of two-digit lowercase hexadecimal values to stdout.
+ *
+ * The output begins with a header line and then 16 rows of 16 space-separated hex bytes (00..ff),
+ * formatted with a trailing newline at the end of each row.
+ */
 static void print_inverse_sbox(void) {
 	printf("          Inverse S-BOX\n");
 	for (unsigned int A = 0x00; A <= 0xff; A++) {
@@ -525,7 +582,20 @@ static void print_inverse_sbox(void) {
 	}
 }
 
-// 6가지 역원 계산 알고리즘 결과 비교 (불일치 시 [MISMATCH] 표시)
+/**
+ * Compare six multiplicative-inverse algorithms across all nonzero GF(2^8) elements and print a verification report.
+ *
+ * For each k from 0x01 to 0xFF this function computes inverses using:
+ * - ExtendEuclideanFunction
+ * - inverseFunction2
+ * - InverseFunction3
+ * - LTR(..., 254)
+ * - RTL(..., 254)
+ * - MAS(..., 254)
+ *
+ * It prints one line per value showing all six results and marks entries where any result differs from the extended-Euclidean reference with "[MISMATCH]".
+ * Finally, it prints the total number of mismatches.
+ */
 static void verify_inverse_algorithms(void) {
 	int mismatch = 0;
 	printf("역원값 비교: ExtEuclidean = invF2 = invF3 = LTR = RTL = MAS\n");
@@ -550,6 +620,11 @@ static void verify_inverse_algorithms(void) {
 	printf("\n총 %d 건 불일치\n", mismatch);
 }
 
+/**
+ * Program entry point that prints the AES S-box, prints the inverse S-box, and verifies multiple GF(2^8) inverse algorithms.
+ *
+ * @returns 0 on successful completion.
+ */
 int main(void) {
 	print_sbox();
 	printf("\n\n");
